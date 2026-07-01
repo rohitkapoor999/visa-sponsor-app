@@ -1,27 +1,27 @@
-import { JSONFilePreset } from "lowdb/node";
-import path from "path";
-import { fileURLToPath } from "url";
+import { createClient } from "@supabase/supabase-js";
+import "dotenv/config";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, "data", "db.json");
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-const defaultData = { cvs: [], employer_lists: [], search_results: [] };
-
-export const db = await JSONFilePreset(dbPath, defaultData);
-
-// Keep only maxCount rows in a collection, deleting oldest unpinned first.
-// `predicate` filters which rows belong to the relevant scope (e.g. same country).
-export async function enforceLimit(collectionName, predicate, maxCount, hasPinned = true) {
-  const all = db.data[collectionName];
-  const scoped = all.filter(predicate).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  if (scoped.length <= maxCount) return;
-
-  const excess = scoped.length - maxCount;
-  const deletable = hasPinned ? scoped.filter((r) => !r.pinned) : scoped;
-  const idsToDelete = new Set(deletable.slice(0, excess).map((r) => r.id));
-
-  db.data[collectionName] = all.filter((r) => !idsToDelete.has(r.id));
-  await db.write();
+if (!supabaseUrl || !supabaseKey) {
+  console.warn("⚠️  SUPABASE_URL or SUPABASE_SERVICE_KEY not set — database features will fail.");
 }
 
-export default db;
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+export async function enforceLimit(table, scopeColumn, scopeValue, max, hasPinned = true) {
+  let query = supabase.from(table).select("id, created_at" + (hasPinned ? ", pinned" : "")).order("created_at", { ascending: true });
+  if (scopeColumn) query = query.eq(scopeColumn, scopeValue);
+  const { data: rows, error } = await query;
+  if (error || !rows || rows.length <= max) return;
+
+  const excess = rows.length - max;
+  const deletable = hasPinned ? rows.filter((r) => !r.pinned) : rows;
+  const toDelete = deletable.slice(0, excess).map((r) => r.id);
+  if (toDelete.length === 0) return;
+
+  await supabase.from(table).delete().in("id", toDelete);
+}
+
+export default supabase;
