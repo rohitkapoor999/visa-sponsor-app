@@ -6,18 +6,6 @@ import { callClaude, parseJsonResponse } from "../utils/claude.js";
 const router = express.Router();
 const MAX_RESULTS_PER_COUNTRY = 4;
 
-const JOB_SCHEMA = `Return ONLY a JSON array, no markdown:
-[{
-  "employer": "Company Name",
-  "title": "Job Title",
-  "location": "City, Country",
-  "url": "direct link or null",
-  "sponsorship_mentioned": true,
-  "sponsorship_evidence": "reason or null",
-  "status": "found or manual_check_needed",
-  "manual_check_reason": "reason or null"
-}]`;
-
 function countryGuard(req, res, next) {
   if (!["NZ", "AU"].includes(req.params.country)) return res.status(400).json({ error: "country must be NZ or AU" });
   next();
@@ -27,6 +15,7 @@ router.post("/:country/search", countryGuard, async (req, res) => {
   try {
     const country = req.params.country;
     const countryName = country === "NZ" ? "New Zealand" : "Australia";
+    const visaType = country === "NZ" ? "AEWV" : "TSS/ENS";
     const { employerListId, cvId } = req.body;
 
     if (!employerListId) return res.status(400).json({ error: "employerListId is required" });
@@ -45,11 +34,42 @@ router.post("/:country/search", countryGuard, async (req, res) => {
     const employerNames = batch.map((e) => `${e.name}${e.website ? ` (${e.website})` : ""}`).join(", ");
 
     const { text: jobsRaw } = await callClaude({
-      system: `You search employer career pages for current openings that sponsor overseas workers (${country === "NZ" ? "AEWV" : "TSS/ENS"}). Mark inaccessible pages as manual_check_needed. ${JOB_SCHEMA}`,
-      messages: [{ role: "user", content: `For these employers in ${countryName}: ${employerNames}\n\nSearch each one's careers page for current openings likely to sponsor overseas candidates. Return up to 15 jobs total. If a careers page can't be read, include one entry with status "manual_check_needed".` }],
-      useWebSearch: true, maxTokens: 4000,
+      system: `You are a job search API. You MUST return ONLY a valid JSON array. No text before or after. No explanation. No introduction. Start your response with [ and end with ]. Nothing else.
+
+Search each employer's careers page for current job openings that sponsor overseas workers on ${visaType} visa in ${countryName}.
+
+JSON array format — each item must have these exact fields:
+[{
+  "employer": "string",
+  "title": "string",
+  "location": "string",
+  "url": "string or null",
+  "sponsorship_mentioned": true or false,
+  "sponsorship_evidence": "string or null",
+  "status": "found" or "manual_check_needed",
+  "manual_check_reason": "string or null"
+}]
+
+If a careers page cannot be accessed, set status to "manual_check_needed". Do NOT write any text outside the JSON array.`,
+      messages: [{ role: "user", content: `Search these employers in ${countryName} for current job openings that sponsor overseas workers: ${employerNames}
+
+Return ONLY a JSON array. Start with [ and end with ]. No other text.` }],
+      useWebSearch: true,
+      maxTokens: 6000,
     });
-    const jobs = parseJsonResponse(jobsRaw);
+
+    // Try to extract JSON even if there's some text around it
+    let jobs;
+    try {
+      jobs = parseJsonResponse(jobsRaw);
+    } catch {
+      const match = jobsRaw.match(/\[[\s\S]*\]/);
+      if (match) {
+        jobs = JSON.parse(match[0]);
+      } else {
+        throw new Error("Could not extract job results. Please try again.");
+      }
+    }
 
     const foundJobs = jobs.filter((j) => j.status === "found");
     const manualJobs = jobs.filter((j) => j.status !== "found");
@@ -57,12 +77,25 @@ router.post("/:country/search", countryGuard, async (req, res) => {
     let scoredJobs = [];
     if (foundJobs.length > 0) {
       const { text: scoredRaw } = await callClaude({
-        system: `Score how well a CV matches each job. Return ONLY a JSON array:
-[{"employer":"...","title":"...","location":"...","url":"...","sponsorship_mentioned":true,"sponsorship_evidence":"...","match_percentage":0,"match_reason":"short explanation","missing_from_cv":["gaps"]}]`,
-        messages: [{ role: "user", content: `CV:\n${cv.text_content.slice(0, 6000)}\n\nJOBS:\n${JSON.stringify(foundJobs)}` }],
-        maxTokens: 4000,
+        system: `You are a CV matching API. You MUST return ONLY a valid JSON array. No text before or after. Start with [ and end with ].
+
+Score how well the CV matches each job. Add these fields to each job object:
+- match_percentage: number 0-100
+- match_reason: short string explaining the score
+- missing_from_cv: array of strings listing skills/qualifications the CV is missing for this role
+
+Return ALL the original job fields plus the three new fields above. Start with [ and end with ]. No other text.`,
+        messages: [{ role: "user", content: `CV:\n${cv.text_content.slice(0, 6000)}\n\nJOBS TO SCORE:\n${JSON.stringify(foundJobs)}\n\nReturn ONLY a JSON array with match scores added. Start with [ end with ].` }],
+        maxTokens: 6000,
       });
-      scoredJobs = parseJsonResponse(scoredRaw);
+
+      try {
+        scoredJobs = parseJsonResponse(scoredRaw);
+      } catch {
+        const match = scoredRaw.match(/\[[\s\S]*\]/);
+        if (match) scoredJobs = JSON.parse(match[0]);
+        else scoredJobs = foundJobs.map((j) => ({ ...j, match_percentage: null, match_reason: "Scoring failed", missing_from_cv: [] }));
+      }
     }
 
     const allResults = [
