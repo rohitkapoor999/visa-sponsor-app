@@ -129,8 +129,16 @@ router.post("/:country/ai-search", countryGuard, async (req, res) => {
       messages: [{ role: "user", content: `Search for companies in ${countryName} currently accredited under ${visaType}. Search multiple industries. Aim for 20 results.` }],
       useWebSearch: true, maxTokens: 4000,
     });
-    const employers = parseJsonResponse(text);
+    let employers;
+try {
+  employers = parseJsonResponse(text);
+} catch {
+  const match = text.match(/\[[\s\S]*\]/);
+  if (match) employers = JSON.parse(match[0]);
+  else throw new Error("Could not parse employer list from AI response. Please try again.");
+}
     const title = `AI search — ${new Date().toLocaleDateString()}`;
+
 
     const { data, error } = await supabase.from("employer_lists").insert({
       id: uuidv4(), country, title, source: "ai_search",
