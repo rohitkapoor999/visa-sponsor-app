@@ -23,7 +23,6 @@ function countryGuard(req, res, next) {
   next();
 }
 
-// POST run a job search
 router.post("/:country/search", countryGuard, async (req, res) => {
   try {
     const country = req.params.country;
@@ -74,7 +73,8 @@ router.post("/:country/search", countryGuard, async (req, res) => {
     const { data: saved, error: saveErr } = await supabase.from("search_results").insert({
       id: uuidv4(), country, cv_id: cv.id, cv_title: cv.title,
       employer_list_id: employerListId, results_json: JSON.stringify(allResults),
-      applied_json: "{}", created_at: new Date().toISOString(),
+      applied_json: "{}", job_count: allResults.length,
+      created_at: new Date().toISOString(),
     }).select().single();
 
     if (saveErr) return res.status(500).json({ error: saveErr.message });
@@ -86,7 +86,6 @@ router.post("/:country/search", countryGuard, async (req, res) => {
   }
 });
 
-// GET all saved result sets for a country
 router.get("/:country/results", countryGuard, async (req, res) => {
   const { data, error } = await supabase
     .from("search_results")
@@ -97,14 +96,12 @@ router.get("/:country/results", countryGuard, async (req, res) => {
   res.json(data);
 });
 
-// GET single result set
 router.get("/:country/results/:id", countryGuard, async (req, res) => {
   const { data, error } = await supabase.from("search_results").select("*").eq("id", req.params.id).eq("country", req.params.country).single();
   if (error) return res.status(404).json({ error: "Result set not found" });
   res.json({ ...data, results: JSON.parse(data.results_json), applied: JSON.parse(data.applied_json) });
 });
 
-// PATCH toggle applied checkbox
 router.patch("/:country/results/:id/applied", countryGuard, async (req, res) => {
   const { jobIndex, applied } = req.body;
   const { data: row, error: fetchErr } = await supabase.from("search_results").select("applied_json").eq("id", req.params.id).single();
@@ -116,7 +113,6 @@ router.patch("/:country/results/:id/applied", countryGuard, async (req, res) => 
   res.json({ success: true, applied: appliedMap });
 });
 
-// DELETE a result set
 router.delete("/:country/results/:id", countryGuard, async (req, res) => {
   const { error } = await supabase.from("search_results").delete().eq("id", req.params.id).eq("country", req.params.country);
   if (error) return res.status(500).json({ error: error.message });
