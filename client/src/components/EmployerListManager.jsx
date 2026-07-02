@@ -3,13 +3,26 @@ import * as api from "../api/client.js";
 
 const STEPS = { IDLE: "idle", EXTRACTING: "extracting", FILTERING: "filtering", REVIEW: "review", SAVING: "saving" };
 
+function downloadCSV(companies, filename) {
+  const header = "Company Name,Reason\n";
+  const rows = companies.map((c) => `"${c.name.replace(/"/g, '""')}","${(c.reason || "").replace(/"/g, '""')}"`).join("\n");
+  const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function EmployerListManager({ country, cfg, activeCvId, onListsChange }) {
   const [lists, setLists] = useState([]);
   const [title, setTitle] = useState("");
+  const [skipFilter, setSkipFilter] = useState(false);
   const [step, setStep] = useState(STEPS.IDLE);
   const [statusMsg, setStatusMsg] = useState("");
   const [error, setError] = useState(null);
-  const [filterResult, setFilterResult] = useState(null); // {profession, key_skills, kept, removed}
+  const [filterResult, setFilterResult] = useState(null);
   const [searching, setSearching] = useState(false);
   const fileRef = useRef(null);
 
@@ -23,7 +36,6 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
 
   useEffect(() => { refresh(); setStep(STEPS.IDLE); setFilterResult(null); setError(null); }, [refresh]);
 
-  // Move a company between kept and removed
   const moveCompany = (company, from, to) => {
     setFilterResult((prev) => ({
       ...prev,
@@ -37,22 +49,35 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
     const file = fileRef.current?.files?.[0];
     if (!title.trim()) return setError("Please give this list a title.");
     if (!file) return setError("Please choose a file.");
-    if (!activeCvId) return setError("Please select a CV first (in the CV section above) — needed for smart filtering.");
+    if (!skipFilter && !activeCvId) return setError("Please select a CV first — needed for smart filtering. Or tick 'Skip filtering' to save directly.");
 
     setError(null);
     setStep(STEPS.EXTRACTING);
-    setStatusMsg("Step 1/2: Extracting company names from your file…");
+    setStatusMsg("Extracting company names from your file…");
 
     try {
-      const { companies } = await api.extractEmployerList(country, file);
+      const { companies, total } = await api.extractEmployerList(country, file);
       if (!companies || companies.length === 0) {
         setStep(STEPS.IDLE);
-        return setError("No company names found in this file. Try a different format.");
+        return setError("No company names found in this file.");
       }
 
-      setStep(STEPS.FILTERING);
-      setStatusMsg(`Step 2/2: Filtering ${companies.length} companies against your CV — finding relevant ones…`);
+      // Skip filter — save directly
+      if (skipFilter) {
+        setStep(STEPS.SAVING);
+        setStatusMsg(`Saving ${total} companies directly…`);
+        await api.saveEmployerList(country, title.trim(), companies, "uploaded");
+        setTitle("");
+        if (fileRef.current) fileRef.current.value = "";
+        setSkipFilter(false);
+        setStep(STEPS.IDLE);
+        await refresh();
+        return;
+      }
 
+      // Run AI filter
+      setStep(STEPS.FILTERING);
+      setStatusMsg(`Filtering ${total} companies against your CV — running in batches, please wait…`);
       const result = await api.prefilterEmployers(country, companies, activeCvId);
       setFilterResult(result);
       setStep(STEPS.REVIEW);
@@ -82,10 +107,8 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
 
   const handleAiSearch = async () => {
     setSearching(true); setError(null);
-    try {
-      await api.aiSearchEmployers(country);
-      await refresh();
-    } catch (e) { setError(e.message); }
+    try { await api.aiSearchEmployers(country); await refresh(); }
+    catch (e) { setError(e.message); }
     finally { setSearching(false); }
   };
 
@@ -103,10 +126,9 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
         🏢 Accredited Employer Lists — {cfg.label} ({lists.length}/5)
       </div>
       <div style={{ fontSize: "0.76rem", color: "#9CA3AF", marginBottom: 14 }}>
-        Upload a file with company names — AI will filter relevant ones based on your selected CV before saving.
+        Upload a file with company names — AI filters relevant ones based on your CV, or skip filtering to save directly.
       </div>
 
-      {/* AI Search button */}
       {step === STEPS.IDLE && (
         <button onClick={handleAiSearch} disabled={searching || lists.length >= 5} style={{
           marginBottom: 12, padding: "9px 16px", borderRadius: 8,
@@ -118,21 +140,31 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
         </button>
       )}
 
-      {/* Upload form */}
       {step === STEPS.IDLE && (
-        <form onSubmit={handleUploadAndFilter} style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          <input type="text" placeholder="List title (e.g. NZ Sponsors List)" value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            style={{ flex: "1 1 200px", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: "0.85rem" }} />
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.pdf,.docx,image/*"
-            style={{ fontSize: "0.8rem", flex: "1 1 200px" }} />
-          <button type="submit" disabled={lists.length >= 5} style={{
-            padding: "9px 18px", borderRadius: 8, border: "none", background: cfg.color,
-            color: "#fff", fontWeight: 600, fontSize: "0.85rem",
-            cursor: lists.length >= 5 ? "not-allowed" : "pointer", opacity: lists.length >= 5 ? 0.6 : 1,
-          }}>
-            Upload & Filter
-          </button>
+        <form onSubmit={handleUploadAndFilter} style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <input type="text" placeholder="List title (e.g. NZ Sponsors List)" value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={{ flex: "1 1 200px", padding: "9px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: "0.85rem" }} />
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.pdf,.docx,image/*"
+              style={{ fontSize: "0.8rem", flex: "1 1 200px" }} />
+            <button type="submit" disabled={lists.length >= 5} style={{
+              padding: "9px 18px", borderRadius: 8, border: "none", background: cfg.color,
+              color: "#fff", fontWeight: 600, fontSize: "0.85rem",
+              cursor: lists.length >= 5 ? "not-allowed" : "pointer", opacity: lists.length >= 5 ? 0.6 : 1,
+            }}>
+              {skipFilter ? "Upload & Save Directly" : "Upload & Filter"}
+            </button>
+          </div>
+
+          {/* Skip filter toggle */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.83rem", color: "#4B5563" }}>
+            <input type="checkbox" checked={skipFilter} onChange={(e) => setSkipFilter(e.target.checked)}
+              style={{ width: 15, height: 15, cursor: "pointer" }} />
+            <span>
+              <strong>Skip filtering</strong> — my list is already filtered, save all companies directly
+            </span>
+          </label>
         </form>
       )}
 
@@ -147,7 +179,7 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
         </div>
       )}
 
-      {/* Review screen — kept vs removed with move buttons */}
+      {/* Review screen */}
       {step === STEPS.REVIEW && filterResult && (
         <div style={{ marginBottom: 16 }}>
           {/* CV detection summary */}
@@ -156,15 +188,22 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
               ✅ CV detected: {filterResult.profession}
             </div>
             <div style={{ fontSize: "0.78rem", color: "#166534" }}>
-              Key skills identified: {(filterResult.key_skills || []).join(", ")}
+              Key skills: {(filterResult.key_skills || []).join(", ")}
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 10 }}>
             {/* Kept list */}
             <div>
-              <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#059669", marginBottom: 8 }}>
-                ✅ Kept ({filterResult.kept?.length || 0}) — click to remove
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#059669" }}>
+                  ✅ Kept ({filterResult.kept?.length || 0}) — click to remove
+                </div>
+                <button
+                  onClick={() => downloadCSV(filterResult.kept, `kept-companies-${title || "list"}.csv`)}
+                  style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: 6, border: "1px solid #059669", background: "#ECFDF5", color: "#059669", cursor: "pointer", fontWeight: 600 }}>
+                  ⬇ Download
+                </button>
               </div>
               <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
                 {(filterResult.kept || []).map((c, i) => (
@@ -181,8 +220,15 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
 
             {/* Removed list */}
             <div>
-              <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#DC2626", marginBottom: 8 }}>
-                ❌ Removed ({filterResult.removed?.length || 0}) — click to add back
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#DC2626" }}>
+                  ❌ Removed ({filterResult.removed?.length || 0}) — click to add back
+                </div>
+                <button
+                  onClick={() => downloadCSV(filterResult.removed, `removed-companies-${title || "list"}.csv`)}
+                  style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: 6, border: "1px solid #DC2626", background: "#FEF2F2", color: "#DC2626", cursor: "pointer", fontWeight: 600 }}>
+                  ⬇ Download
+                </button>
               </div>
               <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
                 {(filterResult.removed || []).map((c, i) => (
@@ -199,7 +245,7 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
           </div>
 
           <div style={{ fontSize: "0.75rem", color: "#6B7280", marginBottom: 12 }}>
-            💡 Click any company to move it between lists. Once happy, save to proceed to job search.
+            💡 Click any company to move between lists. Download either list as CSV. Once happy, save to proceed.
           </div>
 
           <div style={{ display: "flex", gap: 10 }}>
@@ -208,6 +254,11 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
               background: cfg.color, color: "#fff", fontWeight: 700, fontSize: "0.88rem", cursor: "pointer",
             }}>
               ✅ Save {filterResult.kept?.length || 0} Companies & Continue
+            </button>
+            <button
+              onClick={() => downloadCSV(filterResult.kept, `kept-companies-${title || "list"}.csv`)}
+              style={{ padding: "10px 16px", borderRadius: 8, border: `1px solid ${cfg.color}`, background: cfg.accentLight, color: cfg.color, fontWeight: 600, fontSize: "0.88rem", cursor: "pointer" }}>
+              ⬇ Download Kept List
             </button>
             <button onClick={() => { setStep(STEPS.IDLE); setFilterResult(null); setError(null); }} style={{
               padding: "10px 16px", borderRadius: 8, border: "1px solid #D1D5DB",
@@ -225,7 +276,7 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
       {lists.length === 0 ? (
         <div style={{ fontSize: "0.85rem", color: "#9CA3AF" }}>No employer lists yet for {cfg.label}.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
           {lists.map((list) => (
             <div key={list.id} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
