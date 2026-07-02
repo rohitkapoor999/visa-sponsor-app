@@ -294,6 +294,14 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button onClick={async () => {
+                  try {
+                    const full = await api.getEmployerList(country, list.id);
+                    downloadCSV(full.employers, `${list.title}.csv`);
+                  } catch (e) { setError(e.message); }
+                }} style={{ fontSize: "0.72rem", padding: "4px 9px", borderRadius: 6, border: "1px solid #059669", background: "#ECFDF5", color: "#059669", cursor: "pointer" }}>
+                  ⬇ Download
+                </button>
                 <button onClick={() => handlePin(list.id)} style={{ fontSize: "0.72rem", padding: "4px 9px", borderRadius: 6, border: "1px solid #D1D5DB", background: "#fff", cursor: "pointer" }}>
                   {list.pinned ? "Unpin" : "Pin"}
                 </button>
