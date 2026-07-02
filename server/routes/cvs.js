@@ -8,7 +8,6 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const MAX_CVS = 5;
 
-// GET all CVs (metadata only)
 router.get("/", async (req, res) => {
   const { data, error } = await supabase
     .from("cvs")
@@ -18,14 +17,12 @@ router.get("/", async (req, res) => {
   res.json(data);
 });
 
-// GET single CV with full text
 router.get("/:id", async (req, res) => {
   const { data, error } = await supabase.from("cvs").select("*").eq("id", req.params.id).single();
   if (error) return res.status(404).json({ error: "CV not found" });
   res.json(data);
 });
 
-// POST upload a new CV
 router.post("/", upload.single("file"), async (req, res) => {
   try {
     const { title } = req.body;
@@ -52,7 +49,6 @@ router.post("/", upload.single("file"), async (req, res) => {
   }
 });
 
-// PATCH toggle pin
 router.patch("/:id/pin", async (req, res) => {
   const { data: row, error: fetchErr } = await supabase.from("cvs").select("pinned").eq("id", req.params.id).single();
   if (fetchErr) return res.status(404).json({ error: "CV not found" });
@@ -61,7 +57,6 @@ router.patch("/:id/pin", async (req, res) => {
   res.json({ id: req.params.id, pinned: !row.pinned });
 });
 
-// DELETE a CV
 router.delete("/:id", async (req, res) => {
   const { error } = await supabase.from("cvs").delete().eq("id", req.params.id);
   if (error) return res.status(500).json({ error: error.message });
