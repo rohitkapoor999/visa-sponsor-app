@@ -15,48 +15,35 @@ export default function App() {
   const [activeCvId, setActiveCvId] = useState(null);
   const [employerLists, setEmployerLists] = useState([]);
   const [globalError, setGlobalError] = useState(null);
-
   const cfg = COUNTRY_CONFIG[country];
 
   const refreshCvs = useCallback(async () => {
     try {
       const data = await api.getCvs();
       setCvs(data);
-      if (data.length && !data.find((c) => c.id === activeCvId)) {
-        setActiveCvId(data[0].id);
-      }
-    } catch (e) {
-      setGlobalError(e.message);
-    }
+      if (data.length && !data.find((c) => c.id === activeCvId)) setActiveCvId(data[0].id);
+    } catch (e) { setGlobalError(e.message); }
   }, [activeCvId]);
 
-  useEffect(() => {
-    refreshCvs();
-  }, []);
+  useEffect(() => { refreshCvs(); }, []);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div style={{ background: `linear-gradient(135deg, ${cfg.color} 0%, ${cfg.accent} 100%)`, padding: "28px 24px 24px", color: "#fff" }}>
         <div style={{ maxWidth: 880, margin: "0 auto" }}>
-          <div style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.13em", opacity: 0.7, textTransform: "uppercase", marginBottom: 5 }}>
-            Work Visa Navigator
-          </div>
-          <h1 style={{ margin: 0, fontSize: "1.65rem", fontWeight: 800, letterSpacing: "-0.02em" }}>
-            {cfg.flag} {cfg.label} Sponsorship Hub
-          </h1>
+          <div style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.13em", opacity: 0.7, textTransform: "uppercase", marginBottom: 5 }}>Work Visa Navigator</div>
+          <h1 style={{ margin: 0, fontSize: "1.65rem", fontWeight: 800, letterSpacing: "-0.02em" }}>{cfg.flag} {cfg.label} Sponsorship Hub</h1>
+          <p style={{ margin: "6px 0 0", opacity: 0.8, fontSize: "0.85rem" }}>Upload your CV · Filter accredited employers · Find visa-sponsored jobs matched to you</p>
         </div>
       </div>
 
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "22px 16px" }}>
-        {/* Country switcher */}
         <div style={{ display: "flex", background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", padding: 4, marginBottom: 18, gap: 4 }}>
           {Object.entries(COUNTRY_CONFIG).map(([code, c]) => (
             <button key={code} onClick={() => setCountry(code)} style={{
               flex: 1, padding: "10px 0", borderRadius: 9, border: "none", fontWeight: 700, fontSize: "0.88rem",
               cursor: "pointer", background: country === code ? c.color : "transparent", color: country === code ? "#fff" : "#6B7280",
-            }}>
-              {c.flag} {c.label}
-            </button>
+            }}>{c.flag} {c.label}</button>
           ))}
         </div>
 
@@ -67,9 +54,7 @@ export default function App() {
         )}
 
         <CvManager cvs={cvs} activeCvId={activeCvId} setActiveCvId={setActiveCvId} onChange={refreshCvs} />
-
-        <EmployerListManager country={country} cfg={cfg} onListsChange={setEmployerLists} />
-
+        <EmployerListManager country={country} cfg={cfg} activeCvId={activeCvId} onListsChange={setEmployerLists} />
         <JobSearchPanel country={country} cfg={cfg} cvs={cvs} activeCvId={activeCvId} employerLists={employerLists} />
       </div>
     </div>
