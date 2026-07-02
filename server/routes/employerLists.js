@@ -17,7 +17,6 @@ function countryGuard(req, res, next) {
   next();
 }
 
-// GET all employer lists for a country
 router.get("/:country", countryGuard, async (req, res) => {
   const { data, error } = await supabase
     .from("employer_lists")
@@ -28,14 +27,12 @@ router.get("/:country", countryGuard, async (req, res) => {
   res.json(data);
 });
 
-// GET single list with full employer data
 router.get("/:country/:id", countryGuard, async (req, res) => {
   const { data, error } = await supabase.from("employer_lists").select("*").eq("id", req.params.id).eq("country", req.params.country).single();
   if (error) return res.status(404).json({ error: "Employer list not found" });
   res.json({ ...data, employers: JSON.parse(data.employers_json) });
 });
 
-// POST upload a file to extract an employer list
 router.post("/:country/upload", countryGuard, upload.single("file"), async (req, res) => {
   try {
     const { title } = req.body;
@@ -73,7 +70,6 @@ router.post("/:country/upload", countryGuard, upload.single("file"), async (req,
   }
 });
 
-// POST AI web search to compile employer list
 router.post("/:country/ai-search", countryGuard, async (req, res) => {
   try {
     const country = req.params.country;
@@ -102,7 +98,6 @@ router.post("/:country/ai-search", countryGuard, async (req, res) => {
   }
 });
 
-// PATCH toggle pin
 router.patch("/:country/:id/pin", countryGuard, async (req, res) => {
   const { data: row, error: fetchErr } = await supabase.from("employer_lists").select("pinned").eq("id", req.params.id).single();
   if (fetchErr) return res.status(404).json({ error: "List not found" });
@@ -111,7 +106,6 @@ router.patch("/:country/:id/pin", countryGuard, async (req, res) => {
   res.json({ id: req.params.id, pinned: !row.pinned });
 });
 
-// DELETE a list
 router.delete("/:country/:id", countryGuard, async (req, res) => {
   const { error } = await supabase.from("employer_lists").delete().eq("id", req.params.id).eq("country", req.params.country);
   if (error) return res.status(500).json({ error: error.message });
