@@ -8,7 +8,7 @@ import { callClaude, parseJsonResponse } from "../utils/claude.js";
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 const MAX_LISTS_PER_COUNTRY = 5;
-const FILTER_BATCH_SIZE = 300; // companies per AI filter batch
+const FILTER_BATCH_SIZE = 100; // companies per AI filter batch
 
 function countryGuard(req, res, next) {
   if (!["NZ", "AU"].includes(req.params.country)) return res.status(400).json({ error: "country must be NZ or AU" });
