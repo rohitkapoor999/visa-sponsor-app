@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import * as api from "../api/client.js";
+import CostEstimate from "./CostEstimate.jsx";
+import { deductCredit, markCreditsDepleted } from "./CreditTracker.jsx";
 
 function MatchBadge({ pct }) {
   if (pct === null || pct === undefined) return null;
@@ -71,10 +73,14 @@ export default function CareerPagesPanel({ cfg, activeCvId, cvs }) {
     setFetching(true); setError(null); setResults(null); setPageResults([]);
     try {
       const data = await api.fetchCareerPageJobs(selectedIds, activeCvId);
+      deductCredit(selectedIds.length * 0.02 + 0.08, `Reading ${selectedIds.length} career page${selectedIds.length > 1 ? "s" : ""} + CV matching`);
       setResults(data.results);
       setPageResults(data.pageResults || []);
       setAppliedMap({});
-    } catch (e) { setError(e.message); }
+    } catch (e) {
+      if (e.message.includes("credit balance")) markCreditsDepleted();
+      setError(e.message);
+    }
     finally { setFetching(false); }
   };
 
@@ -199,6 +205,14 @@ export default function CareerPagesPanel({ cfg, activeCvId, cvs }) {
       )}
 
       {/* Fetch Jobs button */}
+      <div style={{ marginBottom: 10 }}>
+        <CostEstimate items={[
+          { cost: 0.00, label: "Page fetching — free" },
+          { cost: 0.00, label: `Job extraction — ~$0.02 per page (${selectedIds.length} selected)` },
+          { cost: Math.min(selectedIds.length * 0.02, 0.10), label: "CV matching" },
+        ]} />
+      </div>
+
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
         <button onClick={handleFetch} disabled={fetching || selectedIds.length === 0 || !activeCvId} style={{
           padding: "10px 24px", borderRadius: 8, border: "none", background: "#059669",
