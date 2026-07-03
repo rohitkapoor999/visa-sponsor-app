@@ -135,14 +135,17 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
       </div>
 
       {step === STEPS.IDLE && (
-        <button onClick={handleAiSearch} disabled={searching || lists.length >= 5} style={{
-          marginBottom: 12, padding: "9px 16px", borderRadius: 8,
-          border: `1px solid ${cfg.color}`, background: cfg.accentLight,
-          color: cfg.color, fontWeight: 700, fontSize: "0.83rem",
-          cursor: searching || lists.length >= 5 ? "not-allowed" : "pointer",
-        }}>
-          {searching ? "Searching the web…" : "🔍 AI Web Search for Employers"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+          <button onClick={handleAiSearch} disabled={searching || lists.length >= 5} style={{
+            padding: "9px 16px", borderRadius: 8,
+            border: `1px solid ${cfg.color}`, background: cfg.accentLight,
+            color: cfg.color, fontWeight: 700, fontSize: "0.83rem",
+            cursor: searching || lists.length >= 5 ? "not-allowed" : "pointer",
+          }}>
+            {searching ? "Searching the web…" : "🔍 AI Web Search for Employers"}
+          </button>
+          <CostEstimate items={[{ cost: 0.08, label: "AI web search + parsing results" }]} />
+        </div>
       )}
 
       {step === STEPS.IDLE && (
@@ -160,16 +163,13 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
             }}>
               {skipFilter ? "Upload & Save Directly" : "Upload & Filter"}
             </button>
-          </div>
-
-          {!skipFilter && (
-            <div style={{ marginBottom: 8 }}>
+            {!skipFilter && (
               <CostEstimate items={[
                 { cost: 0.00, label: "Extraction — free" },
                 { cost: 0.04, label: "AI filtering per 100 companies" },
               ]} />
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Skip filter toggle */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.83rem", color: "#4B5563" }}>
