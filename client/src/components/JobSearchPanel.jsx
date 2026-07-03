@@ -165,11 +165,11 @@ export default function JobSearchPanel({ country, cfg, cvs, activeCvId, employer
             }}>
             {searching && searchMode === "company" ? "Searching…" : "🔍 Search Career Pages"}
           </button>
+          <CostEstimate items={[
+            { cost: 0.08, label: "AI web search (12 companies)" },
+            { cost: 0.10, label: "CV matching up to 15 jobs" },
+          ]} />
         </div>
-        <CostEstimate items={[
-          { cost: 0.08, label: "AI web search (12 companies)" },
-          { cost: 0.10, label: "CV matching up to 15 jobs" },
-        ]} />
       </div>
 
       {/* Search Option 2: Jooble */}
@@ -196,11 +196,11 @@ export default function JobSearchPanel({ country, cfg, cvs, activeCvId, employer
             }}>
             {searching && searchMode === "jooble" ? "Searching Jooble…" : "🟣 Search Jooble + Adzuna"}
           </button>
+          <CostEstimate items={[
+            { cost: 0.01, label: "Keyword extraction from CV" },
+            { cost: 0.10, label: "CV matching up to 40 jobs" },
+          ]} />
         </div>
-        <CostEstimate items={[
-          { cost: 0.01, label: "Keyword extraction from CV" },
-          { cost: 0.10, label: "CV matching up to 40 jobs" },
-        ]} />
       </div>
 
       <div style={{ fontSize: "0.8rem", color: activeCv ? "#111827" : "#DC2626", marginBottom: 10 }}>
