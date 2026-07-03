@@ -205,14 +205,6 @@ export default function CareerPagesPanel({ cfg, activeCvId, cvs }) {
       )}
 
       {/* Fetch Jobs button */}
-      <div style={{ marginBottom: 10 }}>
-        <CostEstimate items={[
-          { cost: 0.00, label: "Page fetching — free" },
-          { cost: 0.00, label: `Job extraction — ~$0.02 per page (${selectedIds.length} selected)` },
-          { cost: Math.min(selectedIds.length * 0.02, 0.10), label: "CV matching" },
-        ]} />
-      </div>
-
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
         <button onClick={handleFetch} disabled={fetching || selectedIds.length === 0 || !activeCvId} style={{
           padding: "10px 24px", borderRadius: 8, border: "none", background: "#059669",
@@ -222,6 +214,11 @@ export default function CareerPagesPanel({ cfg, activeCvId, cvs }) {
         }}>
           {fetching ? "Fetching jobs…" : `🌐 Fetch Jobs from ${selectedIds.length} Page${selectedIds.length !== 1 ? "s" : ""}`}
         </button>
+        <CostEstimate items={[
+          { cost: 0.00, label: "Page fetching — free" },
+          { cost: Math.max(selectedIds.length * 0.02, 0.02), label: `Job extraction (${selectedIds.length} page${selectedIds.length !== 1 ? "s" : ""})` },
+          { cost: 0.08, label: "CV matching" },
+        ]} />
         <div style={{ fontSize: "0.8rem", color: activeCv ? "#111827" : "#DC2626" }}>
           CV: <strong>{activeCv ? activeCv.title : "None selected"}</strong>
         </div>
