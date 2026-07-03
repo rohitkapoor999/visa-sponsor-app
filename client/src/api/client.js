@@ -68,3 +68,28 @@ export const toggleApplied = (country, id, jobIndex, applied) =>
   });
 export const deleteSearchResult = (country, id) =>
   request(`/jobs/${country}/results/${id}`, { method: "DELETE" });
+
+// ---- Jooble Job Search ----
+export const joobleSearch = (country, cvId, keywords) =>
+  request(`/jooble/${country}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cvId, keywords }),
+  });
+
+// ---- Career Pages ----
+export const getCareerPages = () => request("/career-pages");
+export const addCareerPage = (name, url, country) =>
+  request("/career-pages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, url, country }),
+  });
+export const fetchCareerPageJobs = (pageIds, cvId) =>
+  request("/career-pages/fetch-jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pageIds, cvId }),
+  });
+export const pinCareerPage = (id) => request(`/career-pages/${id}/pin`, { method: "PATCH" });
+export const deleteCareerPage = (id) => request(`/career-pages/${id}`, { method: "DELETE" });
