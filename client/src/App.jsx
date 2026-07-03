@@ -4,6 +4,7 @@ import CvManager from "./components/CvManager.jsx";
 import EmployerListManager from "./components/EmployerListManager.jsx";
 import JobSearchPanel from "./components/JobSearchPanel.jsx";
 import CareerPagesPanel from "./components/CareerPagesPanel.jsx";
+import CreditTracker from "./components/CreditTracker.jsx";
 
 const COUNTRY_CONFIG = {
   NZ: { label: "New Zealand", flag: "🇳🇿", color: "#00558B", accent: "#00A693", accentLight: "#E6F7F5", visaType: "Accredited Employer Work Visa (AEWV)" },
@@ -54,6 +55,7 @@ export default function App() {
           </div>
         )}
 
+        <CreditTracker />
         <CvManager cvs={cvs} activeCvId={activeCvId} setActiveCvId={setActiveCvId} onChange={refreshCvs} />
         <EmployerListManager country={country} cfg={cfg} activeCvId={activeCvId} onListsChange={setEmployerLists} />
         <CareerPagesPanel cfg={cfg} activeCvId={activeCvId} cvs={cvs} />
