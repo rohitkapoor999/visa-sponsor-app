@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import * as api from "../api/client.js";
+import CostEstimate from "./CostEstimate.jsx";
+import { deductCredit, markCreditsDepleted } from "./CreditTracker.jsx";
 
 const STEPS = { IDLE: "idle", EXTRACTING: "extracting", FILTERING: "filtering", REVIEW: "review", SAVING: "saving" };
 
@@ -79,10 +81,13 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
       setStep(STEPS.FILTERING);
       setStatusMsg(`Filtering ${total} companies against your CV — running in batches, please wait…`);
       const result = await api.prefilterEmployers(country, companies, activeCvId);
+      const batches = Math.ceil(companies.length / 100);
+      deductCredit(batches * 0.04, `AI filtering ${companies.length} companies (${batches} batch${batches > 1 ? "es" : ""})`);
       setFilterResult(result);
       setStep(STEPS.REVIEW);
       setStatusMsg("");
     } catch (err) {
+      if (err.message.includes("credit balance")) markCreditsDepleted();
       setStep(STEPS.IDLE);
       setError(err.message);
     }
@@ -156,6 +161,15 @@ export default function EmployerListManager({ country, cfg, activeCvId, onListsC
               {skipFilter ? "Upload & Save Directly" : "Upload & Filter"}
             </button>
           </div>
+
+          {!skipFilter && (
+            <div style={{ marginBottom: 8 }}>
+              <CostEstimate items={[
+                { cost: 0.00, label: "Extraction — free" },
+                { cost: 0.04, label: "AI filtering per 100 companies" },
+              ]} />
+            </div>
+          )}
 
           {/* Skip filter toggle */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.83rem", color: "#4B5563" }}>
